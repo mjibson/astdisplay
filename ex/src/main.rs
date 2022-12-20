@@ -1,35 +1,60 @@
+#![allow(dead_code, unused_imports, unused_variables)]
+
 use std::fmt;
 
 use mz_sql_parser::ast::display::AstDisplay;
 use mz_sql_parser::ast::{display::AstFormatter, Ident};
-use mz_sql_parser::ast::{UnresolvedDatabaseName, UnresolvedObjectName};
+use mz_sql_parser::ast::{AstInfo, UnresolvedDatabaseName, UnresolvedObjectName};
+use pretty::{Doc, RcDoc};
 
 use astdisplay::*;
 
-#[derive(AstDisplay)]
+trait ToDoc {
+    fn to_doc(&self) -> RcDoc<()>;
+}
+
+#[derive(AstDisplay, ToDoc)]
 enum Blah {
     Yo,
     Foo,
 }
 
-#[derive(AstDisplay)]
+impl ToDoc for Ident {
+    fn to_doc(&self) -> RcDoc<()> {
+        RcDoc::text(self.as_str())
+    }
+}
+
+impl ToDoc for UnresolvedObjectName {
+    fn to_doc(&self) -> RcDoc<()> {
+        RcDoc::text(self.to_ast_string())
+    }
+}
+
+impl ToDoc for UnresolvedDatabaseName {
+    fn to_doc(&self) -> RcDoc<()> {
+        RcDoc::text(self.to_ast_string())
+    }
+}
+
+#[derive(AstDisplay, ToDoc)]
 pub struct DropRolesStatement {
     pub if_exists: bool,
     pub names: Vec<Ident>,
 }
 
-#[derive(AstDisplay)]
+#[derive(AstDisplay, ToDoc)]
 struct AlterConnectionStatement {
     pub if_exists: bool,
     pub name: UnresolvedObjectName,
 }
 
-#[derive(AstDisplay)]
+#[derive(AstDisplay, ToDoc)]
 pub struct DiscardStatement {
     pub target: DiscardTarget,
 }
 
-#[derive(AstDisplay)]
+#[derive(AstDisplay, ToDoc)]
 pub enum DiscardTarget {
     Plans,
     Sequences,
@@ -37,7 +62,7 @@ pub enum DiscardTarget {
     All,
 }
 
-#[derive(AstDisplay)]
+#[derive(AstDisplay, ToDoc)]
 pub struct DropDatabaseStatement {
     pub if_exists: bool,
     pub name: UnresolvedDatabaseName,
@@ -61,5 +86,52 @@ fn main() {
         if_exists: true,
         restrict: true,
     };
-    println!("{}", s.to_ast_string());
+    let expr = Expr::Identifier(vec!["blah".into(), "second".into()]);
+    let s = Select {
+        projection: vec![SelectItem::Wildcard, SelectItem::Expr(expr.clone())],
+        selection: Some(expr.clone()),
+        having: Some(expr.clone()),
+        group_by: vec![expr.clone()],
+    };
+    // let ast = s.to_ast_string();
+    // println!("{}", ast);
+    let mut prev = "".to_string();
+    let doc = s.to_doc();
+    for i in 1..=100 {
+        let mut cur = Vec::new();
+        doc.render(i, &mut cur).unwrap();
+        let cur = String::from_utf8(cur).unwrap();
+        if cur != prev {
+            prev = cur;
+            println!("\n{i}:\n{prev}");
+        }
+    }
+}
+
+#[derive(ToDoc)]
+struct Select /*<T: AstInfo>*/ {
+    //pub distinct: Option<Distinct<T>>,
+    pub projection: Vec<SelectItem>,
+    //pub from: Vec<TableWithJoins<T>>,
+    #[todoc(rename = "WHERE")]
+    pub selection: Option<Expr>,
+    pub group_by: Vec<Expr>,
+    pub having: Option<Expr>,
+    //pub options: Vec<SelectOption<T>>,
+}
+
+#[derive(ToDoc)]
+enum SelectItem /*<T: AstInfo>*/ {
+    /// An expression, optionally followed by `[ AS ] alias`.
+    //Expr { expr: Expr, alias: Option<Ident> },
+    Expr(Expr),
+    /// An unqualified `*`.
+    #[todoc(rename = "*")]
+    Wildcard,
+}
+
+#[derive(ToDoc, Clone)]
+enum Expr {
+    /// Identifier e.g. table name or column name
+    Identifier(#[todoc(separator = ".")] Vec<Ident>),
 }

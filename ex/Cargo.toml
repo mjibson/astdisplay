@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 astdisplay = { path = "../astdisplay" }
 mz-sql-parser = { path = "/home/mjibson/materialize/src/sql-parser" }
+pretty = "0.11.3"
