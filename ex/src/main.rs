@@ -100,6 +100,7 @@ fn main() {
         group_by: Vec::new(),
         having: Some(expr.clone()),
     };
+    let s = Values(vec![vec![expr.clone()]]);
     // let ast = s.to_ast_string();
     // println!("{}", ast);
     let mut prev = "".to_string();
@@ -147,3 +148,6 @@ enum Expr {
     /// Identifier e.g. table name or column name
     Identifier(#[todoc(separator = ".")] Vec<Ident>),
 }
+
+#[derive(ToDoc)]
+pub struct Values(pub Vec<Vec<Expr>>);

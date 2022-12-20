@@ -5,7 +5,7 @@ use std::{collections::HashMap, fmt::Write};
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Attribute, Field, Ident, Item, Type};
+use syn::{Attribute, Field, Fields, Ident, Item, Type};
 
 fn is_bool(field: &Field) -> bool {
     matches!(
@@ -249,6 +249,53 @@ fn from_field<I: quote::ToTokens>(field: &Field, ident: &I) -> FromField {
     }
 }
 
+fn extract_fields(
+    fields: &Fields,
+    name: &str,
+) -> (Option<proc_macro2::TokenStream>, proc_macro2::TokenStream) {
+    match fields {
+        syn::Fields::Named(fields) => {
+            let idents = fields
+                .named
+                .iter()
+                .map(|field| &field.ident)
+                .collect::<Vec<_>>();
+            let fields = fields.named.iter().map(|field| {
+                let doc = from_field(field, &field.ident).doc;
+                quote! { #doc.unwrap_or_else(RcDoc::nil) }
+            });
+            let value = quote! { {
+                RcDoc::intersperse([#(#fields),*], RcDoc::line())
+                .nest(#NEST)
+                .group()
+            } }
+            .into();
+            (Some(quote! { { #(#idents),* } }.into()), value)
+        }
+        syn::Fields::Unnamed(fields) => {
+            let idents = fields
+                .unnamed
+                .iter()
+                .enumerate()
+                .map(|(idx, _field)| {
+                    // TODO: Better way to do this?
+                    Ident::new(&format!("_{idx}"), syn::__private::Span::call_site())
+                })
+                .collect::<Vec<_>>();
+            let value = match fields.unnamed.len() {
+                1 => {
+                    let field = fields.unnamed.first().expect("shoulda had one");
+                    let doc = from_field(field, idents.get(0).unwrap()).doc;
+                    quote! { #doc.unwrap_or_else(RcDoc::nil) }
+                }
+                _ => panic!("exactly 1 unnamed enum variant field supported"),
+            };
+            (Some(quote! { ( #(#idents)* ) }.into()), value.into())
+        }
+        syn::Fields::Unit => (None, quote! { RcDoc::text(#name) }.into()),
+    }
+}
+
 #[proc_macro_derive(ToDoc, attributes(todoc))]
 pub fn derive_to_doc(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
@@ -261,48 +308,7 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                 let name = attrs
                     .remove("rename")
                     .unwrap_or_else(|| ident.to_string().to_uppercase());
-                let value = quote! { RcDoc::text(#name) };
-                let (fields, value) = match &variant.fields {
-                    syn::Fields::Named(fields) => {
-                        let idents = fields
-                            .named
-                            .iter()
-                            .map(|field| &field.ident)
-                            .collect::<Vec<_>>();
-                        let fields = fields.named.iter().map(|field| {
-                            let doc = from_field(field, &field.ident).doc;
-                            quote! { #doc.unwrap_or_else(RcDoc::nil) }
-                        });
-                        let value = quote! { {
-                            RcDoc::intersperse([#(#fields),*], RcDoc::line())
-                            .nest(#NEST)
-                            .group()
-                        } }
-                        .into();
-                        (quote! { { #(#idents),* } }.into(), value)
-                    }
-                    syn::Fields::Unnamed(fields) => {
-                        let idents = fields
-                            .unnamed
-                            .iter()
-                            .enumerate()
-                            .map(|(idx, _field)| {
-                                // TODO: Better way to do this?
-                                Ident::new(&format!("_{idx}"), syn::__private::Span::call_site())
-                            })
-                            .collect::<Vec<_>>();
-                        let value = match fields.unnamed.len() {
-                            1 => {
-                                let field = fields.unnamed.first().expect("shoulda had one");
-                                let doc = from_field(field, idents.get(0).unwrap()).doc;
-                                quote! { #doc.unwrap_or_else(RcDoc::nil) }
-                            }
-                            _ => panic!("exactly 1 unnamed enum variant field supported"),
-                        };
-                        (quote! { ( #(#idents)* ) }.into(), value)
-                    }
-                    syn::Fields::Unit => (None, value),
-                };
+                let (fields, value) = extract_fields(&variant.fields, &name);
                 let v = quote! { Self::#ident #fields => #value, };
                 println!("VARIANT: {v}");
                 v
@@ -321,6 +327,7 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
             .into()
         }
         Item::Struct(item) => {
+            dbg!(&item);
             let mut struct_attrs = Attrs::new(&item.attrs);
             let fields = item.fields.iter().map(|field| {
                 let ident = &field.ident;
