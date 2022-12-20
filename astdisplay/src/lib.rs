@@ -180,11 +180,15 @@ impl Drop for Attrs {
 
 const NEST: isize = 4;
 
+struct FromField {
+    is_container: bool,
+    name: String,
+    doc: quote::__private::TokenStream,
+    attrs: Attrs,
+}
+
 /// Returns whether this was a container (Vec, Option).
-fn from_field<I: quote::ToTokens>(
-    field: &Field,
-    ident: &I,
-) -> (bool, quote::__private::TokenStream) {
+fn from_field<I: quote::ToTokens>(field: &Field, ident: &I) -> FromField {
     let mut attrs = Attrs::new(&field.attrs);
     let name = attrs.remove("rename").unwrap_or_else(|| {
         ident
@@ -196,8 +200,8 @@ fn from_field<I: quote::ToTokens>(
             .to_uppercase()
             .replace("_", " ")
     });
-    if is_bool(&field) {
-        (false, quote! { RcDoc::text(#name) })
+    let (is_container, doc) = if is_bool(&field) {
+        (false, quote! { Some(RcDoc::text(#name)) })
     } else if is_vec(&field) {
         let sep = match attrs.remove("separator") {
             Some(sep) => quote! { RcDoc::text(#sep) },
@@ -206,40 +210,42 @@ fn from_field<I: quote::ToTokens>(
         (
             true,
             quote! { if #ident.is_empty() {
-                    // TODO: Make sure this doesn't yield an extra space or line
-                    // when None. May need to filter out nil docs somewhere.
-                    RcDoc::nil()
+                    None
                 } else {
-                    let doc = RcDoc::intersperse(
+                    Some(RcDoc::intersperse(
                         #ident.iter().map(|v| v.to_doc()),
                         #sep
-                    ).group();
-                    RcDoc::text(#name)
-                    .append(RcDoc::line())
-                    .append(doc)
-                    .nest(#NEST)
-                    .group()
+                    ).group())
                 }
             },
         )
     } else if is_option(&field) {
-        (
-            true,
-            quote! { if let Some(opt) = &#ident {
-                    RcDoc::text(#name)
-                    .append(RcDoc::line())
-                    .append(opt.to_doc())
-                    .nest(#NEST)
-                    .group()
-                } else {
-                    // TODO: Make sure this doesn't yield an extra space or line
-                    // when None. May need to filter out nil docs somewhere.
-                    RcDoc::nil()
-                }
-            },
-        )
+        let mut doc = quote! { if let Some(opt) = &#ident {
+                Some(opt.to_doc())
+            } else {
+                None
+            }
+        };
+        // TODO: This should be a rename. SelectItem::Expr.alias should by
+        // default spit out "ALIAS" because it's an Option.
+        if let Some(prefix) = attrs.remove("prefix") {
+            doc = quote! { #doc.map(|doc|
+                RcDoc::text(#prefix)
+                .append(RcDoc::line())
+                .append(doc)
+                .nest(#NEST)
+                .group()
+            ) };
+        }
+        (true, doc)
     } else {
-        (false, quote! { #ident.to_doc() })
+        (false, quote! { Some(#ident.to_doc()) })
+    };
+    FromField {
+        is_container,
+        name,
+        doc,
+        attrs,
     }
 }
 
@@ -248,6 +254,7 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
     match input {
         Item::Enum(item) => {
+            let mut enum_attrs = Attrs::new(&item.attrs);
             let variants = item.variants.iter().map(|variant| {
                 let ident = &variant.ident;
                 let mut attrs = Attrs::new(&variant.attrs);
@@ -257,10 +264,22 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                 let value = quote! { RcDoc::text(#name) };
                 let (fields, value) = match &variant.fields {
                     syn::Fields::Named(fields) => {
+                        let idents = fields
+                            .named
+                            .iter()
+                            .map(|field| &field.ident)
+                            .collect::<Vec<_>>();
                         let fields = fields.named.iter().map(|field| {
-                            field.ident.clone().expect("enum variant named field ident")
+                            let doc = from_field(field, &field.ident).doc;
+                            quote! { #doc.unwrap_or_else(RcDoc::nil) }
                         });
-                        (quote! { { #(#fields)* } }.into(), value)
+                        let value = quote! { {
+                            RcDoc::intersperse([#(#fields),*], RcDoc::line())
+                            .nest(#NEST)
+                            .group()
+                        } }
+                        .into();
+                        (quote! { { #(#idents),* } }.into(), value)
                     }
                     syn::Fields::Unnamed(fields) => {
                         let idents = fields
@@ -275,7 +294,8 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                         let value = match fields.unnamed.len() {
                             1 => {
                                 let field = fields.unnamed.first().expect("shoulda had one");
-                                from_field(field, idents.get(0).unwrap()).1
+                                let doc = from_field(field, idents.get(0).unwrap()).doc;
+                                quote! { #doc.unwrap_or_else(RcDoc::nil) }
                             }
                             _ => panic!("exactly 1 unnamed enum variant field supported"),
                         };
@@ -283,7 +303,9 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                     }
                     syn::Fields::Unit => (None, value),
                 };
-                quote! { Self::#ident #fields => #value, }
+                let v = quote! { Self::#ident #fields => #value, };
+                println!("VARIANT: {v}");
+                v
             });
             let item_ident = item.ident;
             let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
@@ -299,28 +321,42 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
             .into()
         }
         Item::Struct(item) => {
+            let mut struct_attrs = Attrs::new(&item.attrs);
             let fields = item.fields.iter().map(|field| {
                 let ident = &field.ident;
-                let (is_container, mut field) = from_field(field, &quote! { self.#ident });
+                let FromField {
+                    is_container,
+                    name,
+                    mut doc,
+                    attrs: _,
+                } = from_field(field, &quote! { self.#ident });
                 if is_container {
-                    field = quote! {
-                        RcDoc::text(#name)
-                        .append(RcDoc::line())
-                        .append(#field)
-                        .nest(#NEST)
-                        .group()
+                    doc = quote! {
+                        #doc.map(|doc|
+                            RcDoc::text(#name)
+                            .append(RcDoc::line())
+                            .append(doc)
+                            .nest(#NEST)
+                            .group()
+                        )
                     };
                 }
-                quote! { docs.push(#field); }
+                quote! { docs.push(#doc); }
             });
             let item_ident = item.ident;
             let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
-            let first = fmt_ident(&item_ident);
+            let first = if struct_attrs.remove("unnamed").is_some() {
+                quote! { None }
+            } else {
+                let first = fmt_ident(&item_ident);
+                quote! { Some(RcDoc::text(#first)) }
+            };
             quote! {
                 impl #impl_generics ToDoc for #item_ident #ty_generics #where_clause {
                     fn to_doc(&self) -> RcDoc<()> {
-                        let mut docs = vec![RcDoc::text(#first)];
+                        let mut docs = vec![#first];
                         #(#fields)*
+                        let docs = docs.into_iter().filter_map(|i| i);
                         RcDoc::intersperse(docs, Doc::line()).group()
                     }
                 }

@@ -88,10 +88,17 @@ fn main() {
     };
     let expr = Expr::Identifier(vec!["blah".into(), "second".into()]);
     let s = Select {
-        projection: vec![SelectItem::Wildcard, SelectItem::Expr(expr.clone())],
+        projection: vec![
+            SelectItem::Wildcard,
+            SelectItem::Expr {
+                expr: expr.clone(),
+                alias: None,
+            },
+        ],
         selection: Some(expr.clone()),
+        //group_by: vec![expr.clone()],
+        group_by: Vec::new(),
         having: Some(expr.clone()),
-        group_by: vec![expr.clone()],
     };
     // let ast = s.to_ast_string();
     // println!("{}", ast);
@@ -109,8 +116,10 @@ fn main() {
 }
 
 #[derive(ToDoc)]
+#[todoc(unnamed)]
 struct Select /*<T: AstInfo>*/ {
     //pub distinct: Option<Distinct<T>>,
+    #[todoc(rename = "SELECT")]
     pub projection: Vec<SelectItem>,
     //pub from: Vec<TableWithJoins<T>>,
     #[todoc(rename = "WHERE")]
@@ -123,8 +132,11 @@ struct Select /*<T: AstInfo>*/ {
 #[derive(ToDoc)]
 enum SelectItem /*<T: AstInfo>*/ {
     /// An expression, optionally followed by `[ AS ] alias`.
-    //Expr { expr: Expr, alias: Option<Ident> },
-    Expr(Expr),
+    Expr {
+        expr: Expr,
+        #[todoc(prefix = "AS")]
+        alias: Option<Ident>,
+    },
     /// An unqualified `*`.
     #[todoc(rename = "*")]
     Wildcard,
