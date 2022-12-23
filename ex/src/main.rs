@@ -37,6 +37,7 @@ impl ToDoc for UnresolvedDatabaseName {
     }
 }
 
+/*
 #[derive(AstDisplay, ToDoc)]
 pub struct DropRolesStatement {
     pub if_exists: bool,
@@ -68,8 +69,11 @@ pub struct DropDatabaseStatement {
     pub name: UnresolvedDatabaseName,
     pub restrict: bool,
 }
+*/
 
 fn main() {
+    let expr = Expr::Identifier(vec!["blah".into(), "second".into()]);
+    /*
     let s = DropRolesStatement {
         if_exists: true,
         names: vec![Ident::from("one"), Ident::from("two")],
@@ -86,7 +90,11 @@ fn main() {
         if_exists: true,
         restrict: true,
     };
-    let expr = Expr::Identifier(vec!["blah".into(), "second".into()]);
+    */
+    let s = Values(vec![
+        Value(vec![expr.clone(), expr.clone()]),
+        Value(vec![expr.clone(), expr.clone()]),
+    ]);
     let s = Select {
         projection: vec![
             SelectItem::Wildcard,
@@ -100,7 +108,6 @@ fn main() {
         group_by: Vec::new(),
         having: Some(expr.clone()),
     };
-    let s = Values(vec![vec![expr.clone()]]);
     // let ast = s.to_ast_string();
     // println!("{}", ast);
     let mut prev = "".to_string();
@@ -117,37 +124,39 @@ fn main() {
 }
 
 #[derive(ToDoc)]
-#[todoc(unnamed)]
 struct Select /*<T: AstInfo>*/ {
     //pub distinct: Option<Distinct<T>>,
-    #[todoc(rename = "SELECT")]
     pub projection: Vec<SelectItem>,
     //pub from: Vec<TableWithJoins<T>>,
-    #[todoc(rename = "WHERE")]
     pub selection: Option<Expr>,
     pub group_by: Vec<Expr>,
     pub having: Option<Expr>,
     //pub options: Vec<SelectOption<T>>,
 }
 
-#[derive(ToDoc)]
-enum SelectItem /*<T: AstInfo>*/ {
-    /// An expression, optionally followed by `[ AS ] alias`.
-    Expr {
-        expr: Expr,
-        #[todoc(prefix = "AS")]
-        alias: Option<Ident>,
-    },
-    /// An unqualified `*`.
-    #[todoc(rename = "*")]
-    Wildcard,
-}
-
-#[derive(ToDoc, Clone)]
+#[derive(Clone, ToDoc)]
 enum Expr {
+    Unit,
+    Struct {
+        a: bool,
+        b: Option<Ident>,
+    },
     /// Identifier e.g. table name or column name
     Identifier(#[todoc(separator = ".")] Vec<Ident>),
 }
 
 #[derive(ToDoc)]
-pub struct Values(pub Vec<Vec<Expr>>);
+//#[todoc(no_name)]
+struct Value(#[todoc(prefix = "(", suffix = ")")] Vec<Expr>);
+
+#[derive(ToDoc)]
+struct Values(Vec<Value>);
+
+#[derive(ToDoc)]
+enum SelectItem /*<T: AstInfo>*/ {
+    /// An expression, optionally followed by `[ AS ] alias`.
+    Expr { expr: Expr, alias: Option<Ident> },
+    /// An unqualified `*`.
+    #[todoc(rename = "*")]
+    Wildcard,
+}
