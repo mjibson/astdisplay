@@ -93,21 +93,29 @@ fn main() {
     */
     let s = Values(vec![
         Value(vec![expr.clone(), expr.clone()]),
-        Value(vec![expr.clone(), expr.clone()]),
-    ]);
-    let s = Select {
-        projection: vec![
-            SelectItem::Wildcard,
-            SelectItem::Expr {
-                expr: expr.clone(),
-                alias: None,
+        Value(vec![
+            Expr::Unit,
+            Expr::Struct { a: true, b: None },
+            Expr::Struct {
+                a: false,
+                b: Some("bb".into()),
             },
-        ],
-        selection: Some(expr.clone()),
-        //group_by: vec![expr.clone()],
-        group_by: Vec::new(),
-        having: Some(expr.clone()),
-    };
+        ]),
+    ]); /*
+        let s = Select {
+            projection: vec![
+                SelectItem::Wildcard,
+                SelectItem::Expr {
+                    expr: expr.clone(),
+                    alias: None,
+                },
+            ],
+            selection: Some(expr.clone()),
+            //group_by: vec![expr.clone()],
+            group_by: Vec::new(),
+            having: Some(expr.clone()),
+        };
+        */
     // let ast = s.to_ast_string();
     // println!("{}", ast);
     let mut prev = "".to_string();
@@ -142,12 +150,12 @@ enum Expr {
         b: Option<Ident>,
     },
     /// Identifier e.g. table name or column name
-    Identifier(#[todoc(separator = ".")] Vec<Ident>),
+    Identifier(#[todoc(separator = ".", no_name)] Vec<Ident>),
 }
 
 #[derive(ToDoc)]
 //#[todoc(no_name)]
-struct Value(#[todoc(prefix = "(", suffix = ")")] Vec<Expr>);
+struct Value(#[todoc(prefix = "(", suffix = ")", no_name)] Vec<Expr>);
 
 #[derive(ToDoc)]
 struct Values(Vec<Value>);
