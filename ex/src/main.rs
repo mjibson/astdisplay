@@ -132,10 +132,13 @@ fn main() {
 }
 
 #[derive(ToDoc)]
+#[todoc(no_name)]
 struct Select /*<T: AstInfo>*/ {
     //pub distinct: Option<Distinct<T>>,
+    #[todoc(rename = "SELECT")]
     pub projection: Vec<SelectItem>,
     //pub from: Vec<TableWithJoins<T>>,
+    #[todoc(rename = "WHERE")]
     pub selection: Option<Expr>,
     pub group_by: Vec<Expr>,
     pub having: Option<Expr>,

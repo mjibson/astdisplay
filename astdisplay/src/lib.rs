@@ -170,13 +170,14 @@ impl Attrs {
     }
 
     fn name(&mut self, mut doc: TokenStream2, name: &str) -> TokenStream2 {
+        let name = self.remove("rename").unwrap_or_else(|| name.to_string());
         if self.remove("no_name").is_none() {
             doc = quote! { #doc.map(|doc|
                 RcDoc::text(#name)
                 .append(RcDoc::line())
                 .append(doc)
                 .nest(#NEST)
-                .group()
+                //.group()
             ) };
         }
         doc
@@ -194,14 +195,6 @@ impl Attrs {
             doc = quote! { #doc.map(|doc| doc.append(RcDoc::text(#suffix))) };
         }
         doc
-    }
-
-    fn rename(&mut self, name: &str) -> String {
-        if let Some(name) = self.remove("rename") {
-            name
-        } else {
-            name.into()
-        }
     }
 }
 
@@ -244,10 +237,12 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
             .into()
         }
         Item::Struct(item) => {
-            let _struct_attrs = Attrs::new(&item.attrs);
-            let FromFields { fields, doc } = from_fields(&item.fields, &fmt_ident(&item.ident));
+            let mut struct_attrs = Attrs::new(&item.attrs);
+            let name = fmt_ident(&item.ident);
+            let FromFields { fields, doc } = from_fields(&item.fields, &name);
             let item_ident = item.ident;
             let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
+            let doc = struct_attrs.name(doc, &name);
             quote! {
                 impl #impl_generics ToDoc for #item_ident #ty_generics #where_clause {
                     fn to_doc(&self) -> RcDoc<()> {
@@ -272,7 +267,6 @@ struct FromField {
 // ident is something like self.blah, name is blah.
 fn from_field(field: &Field, ident: &Ident, name: &str) -> FromField {
     let mut attrs = Attrs::new(&field.attrs);
-    let name = attrs.rename(name);
     let doc = if is_bool(&field) {
         quote! { #ident.then(|| RcDoc::text(#name)) }
     } else if is_vec(&field) {
@@ -350,7 +344,7 @@ fn unnamed_fields(fields: &FieldsUnnamed, name: &str) -> FromFields {
 fn named_fields(fields: &FieldsNamed) -> FromFields {
     let docs = fields.named.iter().map(|field| {
         let ident = field.ident.as_ref().unwrap();
-        let FromField { doc, _attrs } = from_field(field, ident, &ident.to_string());
+        let FromField { doc, _attrs } = from_field(field, ident, &fmt_ident(ident));
         doc
     });
     let doc = quote! { {
