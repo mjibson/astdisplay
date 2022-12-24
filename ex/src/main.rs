@@ -101,21 +101,21 @@ fn main() {
                 b: Some("bb".into()),
             },
         ]),
-    ]); /*
-        let s = Select {
-            projection: vec![
-                SelectItem::Wildcard,
-                SelectItem::Expr {
-                    expr: expr.clone(),
-                    alias: None,
-                },
-            ],
-            selection: Some(expr.clone()),
-            //group_by: vec![expr.clone()],
-            group_by: Vec::new(),
-            having: Some(expr.clone()),
-        };
-        */
+    ]);
+    let s = Select {
+        projection: vec![
+            SelectItem::Wildcard,
+            SelectItem::Expr {
+                expr: expr.clone(),
+                alias: None,
+            },
+        ],
+        selection: Some(expr.clone()),
+        //group_by: vec![expr.clone()],
+        group_by: Vec::new(),
+        having: Some(expr.clone()),
+    };
+
     // let ast = s.to_ast_string();
     // println!("{}", ast);
     let mut prev = "".to_string();
