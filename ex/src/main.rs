@@ -37,6 +37,12 @@ impl ToDoc for UnresolvedDatabaseName {
     }
 }
 
+impl ToDoc for usize {
+    fn to_doc(&self) -> RcDoc<()> {
+        RcDoc::text(self.to_string())
+    }
+}
+
 /*
 #[derive(AstDisplay, ToDoc)]
 pub struct DropRolesStatement {
@@ -115,6 +121,7 @@ fn main() {
         group_by: Vec::new(),
         having: Some(expr.clone()),
     };
+    let s = SelectOptionName::Parameter(3);
 
     // let ast = s.to_ast_string();
     // println!("{}", ast);
@@ -171,4 +178,11 @@ enum SelectItem /*<T: AstInfo>*/ {
     /// An unqualified `*`.
     #[todoc(rename = "*")]
     Wildcard,
+}
+
+#[derive(ToDoc)]
+enum SelectOptionName {
+    ExpectedGroupSizeYo,
+    #[todoc(prefix = "$")]
+    Parameter(usize),
 }

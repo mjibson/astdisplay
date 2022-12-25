@@ -43,8 +43,11 @@ fn split_upper<'a>(mut s: &'a str) -> Vec<&'a str> {
         }
     }
     let mut strs = Vec::with_capacity(indexes.len());
+    let mut accum = 0;
     for split_at in indexes {
-        let (l, r) = s.split_at(split_at);
+        let at = split_at - accum;
+        let (l, r) = s.split_at(at);
+        accum += at;
         s = r;
         strs.push(l);
     }
@@ -201,7 +204,7 @@ impl Attrs {
 impl Drop for Attrs {
     fn drop(&mut self) {
         if !self.0.is_empty() {
-            panic!("unknown attributes: {:?}", self.0);
+            panic!("unknown attributes: {:?}", self.0.keys());
         }
     }
 }
@@ -220,7 +223,10 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                 let name = variant_attrs
                     .remove("rename")
                     .unwrap_or_else(|| fmt_ident(&variant.ident));
-                let FromFields { fields, doc } = from_fields(&variant.fields, &name);
+                let FromFields { fields, mut doc } = from_fields(&variant.fields, &name);
+                if let Some(prefix) = variant_attrs.remove("prefix") {
+                    doc = quote! { #doc.map(|doc| pretty::RcDoc::text(#prefix).append(doc)) };
+                }
                 quote! { Self::#ident #fields => #doc.unwrap_or_else(pretty::RcDoc::nil), }
             });
             let item_ident = item.ident;
