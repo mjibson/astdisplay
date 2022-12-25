@@ -261,7 +261,7 @@ type TokenStream2 = proc_macro2::TokenStream;
 
 struct FromField {
     doc: TokenStream2,
-    _attrs: Attrs,
+    attrs: Attrs,
 }
 
 // ident is something like self.blah, name is blah.
@@ -297,7 +297,7 @@ fn from_field(field: &Field, ident: &Ident, name: &str) -> FromField {
     };
     let doc = attrs.prefix(doc);
     let doc = attrs.suffix(doc);
-    FromField { doc, _attrs: attrs }
+    FromField { doc, attrs }
 }
 
 struct FromFields {
@@ -342,11 +342,21 @@ fn unnamed_fields(fields: &FieldsUnnamed, name: &str) -> FromFields {
 }
 
 fn named_fields(fields: &FieldsNamed) -> FromFields {
-    let docs = fields.named.iter().map(|field| {
-        let ident = field.ident.as_ref().unwrap();
-        let FromField { doc, _attrs } = from_field(field, ident, &fmt_ident(ident));
-        doc
-    });
+    let mut ignored = false;
+    let (docs, mut idents): (Vec<_>, Vec<_>) = fields
+        .named
+        .iter()
+        .filter_map(|field| {
+            let ident = field.ident.as_ref().unwrap();
+            let FromField { doc, mut attrs } = from_field(field, ident, &fmt_ident(ident));
+            if attrs.remove("ignore").is_some() {
+                ignored = true;
+                None
+            } else {
+                Some((doc, quote! { #ident }))
+            }
+        })
+        .unzip();
     let doc = quote! { {
        let docs = [#(#docs),*].into_iter().filter_map(|v| v).collect::<Vec<_>>();
        if docs.is_empty() {
@@ -355,10 +365,9 @@ fn named_fields(fields: &FieldsNamed) -> FromFields {
            Some(pretty::RcDoc::intersperse(docs, pretty::RcDoc::line()).group())
        }
     } };
-    let idents = fields
-        .named
-        .iter()
-        .map(|field| field.ident.as_ref().unwrap());
+    if ignored {
+        idents.push(quote! { .. });
+    }
     let idents = quote! { {#(#idents),*} };
     FromFields {
         fields: idents,

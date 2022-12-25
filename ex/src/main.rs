@@ -141,6 +141,7 @@ struct Select /*<T: AstInfo>*/ {
     #[todoc(rename = "WHERE")]
     pub selection: Option<Expr>,
     pub group_by: Vec<Expr>,
+    #[todoc(ignore)]
     pub having: Option<Expr>,
     //pub options: Vec<SelectOption<T>>,
 }
