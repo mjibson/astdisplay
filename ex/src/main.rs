@@ -121,7 +121,13 @@ fn main() {
         group_by: Vec::new(),
         having: Some(expr.clone()),
     };
-    let s = SelectOptionName::Parameter(3);
+    let s = Expr::Like {
+        negated: false,
+        expr: Box::new(expr.clone()),
+        pattern: Box::new(expr.clone()),
+        escape: Some(Box::new(expr.clone())),
+        case_insensitive: false,
+    };
 
     // let ast = s.to_ast_string();
     // println!("{}", ast);
@@ -153,17 +159,6 @@ struct Select /*<T: AstInfo>*/ {
     //pub options: Vec<SelectOption<T>>,
 }
 
-#[derive(Clone, ToDoc)]
-enum Expr {
-    Unit,
-    Struct {
-        a: bool,
-        b: Option<Ident>,
-    },
-    /// Identifier e.g. table name or column name
-    Identifier(#[todoc(separator = ".", no_name)] Vec<Ident>),
-}
-
 #[derive(ToDoc)]
 //#[todoc(no_name)]
 struct Value(#[todoc(prefix = "(", suffix = ")", no_name)] Vec<Expr>);
@@ -180,9 +175,35 @@ enum SelectItem /*<T: AstInfo>*/ {
     Wildcard,
 }
 
-#[derive(ToDoc)]
-enum SelectOptionName {
+#[derive(Clone, ToDoc)]
+enum Expr {
+    /// `<expr> [ NOT ] {LIKE, ILIKE} <pattern> [ ESCAPE <escape> ]`
+    Like {
+        expr: Box<Expr>,
+        #[todoc(rename = "NOT")]
+        negated: bool,
+        #[todoc(rename = "ILIKE", else = "LIKE")]
+        case_insensitive: bool,
+        pattern: Box<Expr>,
+        escape: Option<Box<Expr>>,
+    },
+    Unit,
+    Struct {
+        a: bool,
+        b: Option<Ident>,
+    },
+    /// Identifier e.g. table name or column name
+    Identifier(#[todoc(separator = ".", no_name)] Vec<Ident>),
     ExpectedGroupSizeYo,
     #[todoc(prefix = "$")]
     Parameter(usize),
+    Not {
+        #[todoc(nest = "NOT")]
+        expr: Box<Expr>,
+    },
+    And {
+        left: Box<Expr>,
+        #[todoc(nest = "AND")]
+        right: Box<Expr>,
+    },
 }
