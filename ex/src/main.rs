@@ -125,15 +125,15 @@ fn main() {
         operand: None,
         conditions: vec![
             CaseCondition {
-                when: Box::new(expr.clone()),
-                then: Box::new(expr.clone()),
+                when: expr.clone(),
+                then: expr.clone(),
             },
             CaseCondition {
-                when: Box::new(expr.clone()),
-                then: Box::new(expr.clone()),
+                when: expr.clone(),
+                then: expr.clone(),
             },
         ],
-        else_result: None,
+        else_result: Some(Box::new(expr.clone())),
     };
 
     // let ast = s.to_ast_string();
@@ -186,9 +186,9 @@ enum SelectItem /*<T: AstInfo>*/ {
 #[todoc(no_name)]
 struct CaseCondition {
     #[todoc(nest = "WHEN")]
-    when: Box<Expr>,
+    when: Expr,
     #[todoc(nest = "THEN")]
-    then: Box<Expr>,
+    then: Expr,
 }
 
 #[derive(Clone, ToDoc)]
