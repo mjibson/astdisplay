@@ -212,18 +212,31 @@ impl Attrs {
                 .nest(#NEST)
                 .group()
             ) };
+            if let Some(suffix) = self.remove("nest_suffix") {
+                doc = quote! { #doc.map(|doc| doc
+                    .append(pretty::RcDoc::line())
+                    .append(pretty::RcDoc::text(#suffix))
+                    .group()
+                ) };
+            }
         }
         doc
-    }
-
-    fn separator(&mut self) -> Option<TokenStream2> {
-        self.remove("separator")
-            .map(|sep| quote! { pretty::RcDoc::text(#sep) })
     }
 
     fn els(&mut self, mut doc: TokenStream2) -> TokenStream2 {
         if let Some(els) = self.remove("else") {
             doc = quote! { Some(#doc.unwrap_or_else(|| pretty::RcDoc::text(#els))) };
+        }
+        doc
+    }
+
+    fn separator(&mut self, default: &str) -> TokenStream2 {
+        let sep = self
+            .remove("separator")
+            .unwrap_or_else(|| default.to_string());
+        let mut doc = quote! { pretty::RcDoc::text(#sep) };
+        if self.remove("separator_noline").is_none() {
+            doc = quote! { #doc.append(pretty::RcDoc::line()) };
         }
         doc
     }
@@ -251,11 +264,10 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                 let name = variant_attrs
                     .remove("rename")
                     .unwrap_or_else(|| fmt_ident(&variant.ident));
-                let FromFields { fields, mut doc } =
-                    from_fields(&variant.fields, &name, variant_attrs.separator());
-                if let Some(prefix) = variant_attrs.remove("prefix") {
-                    doc = quote! { #doc.map(|doc| pretty::RcDoc::text(#prefix).append(doc)) };
-                }
+                let FromFields { fields, doc } =
+                    from_fields(&variant.fields, &name, variant_attrs.separator(""));
+                let doc = variant_attrs.prefix(doc);
+                let doc = variant_attrs.nest(doc);
                 quote! { Self::#ident #fields => #doc.unwrap_or_else(pretty::RcDoc::nil), }
             });
             let item_ident = item.ident;
@@ -275,7 +287,7 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
             let mut struct_attrs = Attrs::new(&item.attrs);
             let name = fmt_ident(&item.ident);
             let FromFields { fields, doc } =
-                from_fields(&item.fields, &name, struct_attrs.separator());
+                from_fields(&item.fields, &name, struct_attrs.separator(""));
             let item_ident = item.ident;
             let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
             let doc = struct_attrs.name(doc, &name);
@@ -309,10 +321,7 @@ fn from_field(field: &Field, ident: &Ident, name: &str) -> FromField {
         let doc = attrs.els(doc);
         doc
     } else if is_vec(&field) {
-        let sep = match attrs.remove("separator") {
-            Some(sep) => quote! { pretty::RcDoc::text(#sep) },
-            None => quote! { pretty::RcDoc::text(",").append(pretty::RcDoc::line()) },
-        };
+        let sep = attrs.separator(",");
         let doc = quote! { if #ident.is_empty() {
                 None
             } else {
@@ -345,7 +354,7 @@ struct FromFields {
     doc: TokenStream2,
 }
 
-fn from_fields(fields: &Fields, name: &str, separator: Option<TokenStream2>) -> FromFields {
+fn from_fields(fields: &Fields, name: &str, separator: TokenStream2) -> FromFields {
     match fields {
         Fields::Named(fields) => named_fields(fields, separator),
         Fields::Unnamed(fields) => unnamed_fields(fields, name),
@@ -381,7 +390,7 @@ fn unnamed_fields(fields: &FieldsUnnamed, name: &str) -> FromFields {
     }
 }
 
-fn named_fields(fields: &FieldsNamed, separator: Option<TokenStream2>) -> FromFields {
+fn named_fields(fields: &FieldsNamed, separator: TokenStream2) -> FromFields {
     let mut ignored = false;
     let (docs, mut idents): (Vec<_>, Vec<_>) = fields
         .named
@@ -397,7 +406,6 @@ fn named_fields(fields: &FieldsNamed, separator: Option<TokenStream2>) -> FromFi
             }
         })
         .unzip();
-    let separator = separator.unwrap_or_else(|| quote! { pretty::RcDoc::line() });
     let doc = quote! { {
        let docs = [#(#docs),*].into_iter().filter_map(|v| v).collect::<Vec<_>>();
        if docs.is_empty() {

@@ -121,12 +121,19 @@ fn main() {
         group_by: Vec::new(),
         having: Some(expr.clone()),
     };
-    let s = Expr::Like {
-        negated: false,
-        expr: Box::new(expr.clone()),
-        pattern: Box::new(expr.clone()),
-        escape: Some(Box::new(expr.clone())),
-        case_insensitive: false,
+    let s = Expr::Case {
+        operand: None,
+        conditions: vec![
+            CaseCondition {
+                when: Box::new(expr.clone()),
+                then: Box::new(expr.clone()),
+            },
+            CaseCondition {
+                when: Box::new(expr.clone()),
+                then: Box::new(expr.clone()),
+            },
+        ],
+        else_result: None,
     };
 
     // let ast = s.to_ast_string();
@@ -176,7 +183,24 @@ enum SelectItem /*<T: AstInfo>*/ {
 }
 
 #[derive(Clone, ToDoc)]
+#[todoc(no_name)]
+struct CaseCondition {
+    #[todoc(nest = "WHEN")]
+    when: Box<Expr>,
+    #[todoc(nest = "THEN")]
+    then: Box<Expr>,
+}
+
+#[derive(Clone, ToDoc)]
 enum Expr {
+    /// `CASE [<operand>] WHEN <condition> THEN <result> ... [ELSE <result>] END`
+    #[todoc(nest = "CASE", nest_suffix = "END")]
+    Case {
+        operand: Option<Box<Expr>>,
+        #[todoc(separator = "", no_name)]
+        conditions: Vec<CaseCondition>,
+        else_result: Option<Box<Expr>>,
+    },
     /// `<expr> [ NOT ] {LIKE, ILIKE} <pattern> [ ESCAPE <escape> ]`
     Like {
         expr: Box<Expr>,
@@ -193,7 +217,7 @@ enum Expr {
         b: Option<Ident>,
     },
     /// Identifier e.g. table name or column name
-    Identifier(#[todoc(separator = ".", no_name)] Vec<Ident>),
+    Identifier(#[todoc(separator = ".", no_name, separator_noline)] Vec<Ident>),
     ExpectedGroupSizeYo,
     #[todoc(prefix = "$")]
     Parameter(usize),
