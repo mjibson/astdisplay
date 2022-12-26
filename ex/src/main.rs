@@ -122,7 +122,7 @@ fn main() {
         having: Some(expr.clone()),
     };
     let s = Expr::Case {
-        operand: None,
+        operand: Some(Box::new(expr.clone())),
         conditions: vec![
             CaseCondition {
                 when: expr.clone(),
@@ -196,9 +196,11 @@ enum Expr {
     /// `CASE [<operand>] WHEN <condition> THEN <result> ... [ELSE <result>] END`
     #[todoc(nest = "CASE", nest_suffix = "END")]
     Case {
+        #[todoc(no_name)]
         operand: Option<Box<Expr>>,
         #[todoc(separator = "", no_name)]
         conditions: Vec<CaseCondition>,
+        #[todoc(nest = "ELSE", no_name)]
         else_result: Option<Box<Expr>>,
     },
     /// `<expr> [ NOT ] {LIKE, ILIKE} <pattern> [ ESCAPE <escape> ]`
