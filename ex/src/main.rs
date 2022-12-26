@@ -121,20 +121,7 @@ fn main() {
         group_by: Vec::new(),
         having: Some(expr.clone()),
     };
-    let s = Expr::Case {
-        operand: Some(Box::new(expr.clone())),
-        conditions: vec![
-            CaseCondition {
-                when: expr.clone(),
-                then: expr.clone(),
-            },
-            CaseCondition {
-                when: expr.clone(),
-                then: expr.clone(),
-            },
-        ],
-        else_result: Some(Box::new(expr.clone())),
-    };
+    let s = Expr::List(vec![]);
 
     // let ast = s.to_ast_string();
     // println!("{}", ast);
@@ -193,6 +180,7 @@ struct CaseCondition {
 
 #[derive(Clone, ToDoc)]
 enum Expr {
+    List(#[todoc(prefix = "LIST[", suffix = "]", no_name, show_empty)] Vec<Expr>),
     /// `CASE [<operand>] WHEN <condition> THEN <result> ... [ELSE <result>] END`
     #[todoc(nest = "CASE", nest_suffix = "END")]
     Case {

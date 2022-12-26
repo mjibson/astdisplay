@@ -230,6 +230,13 @@ impl Attrs {
         doc
     }
 
+    fn show_empty(&mut self, mut doc: TokenStream2) -> TokenStream2 {
+        if self.remove("show_empty").is_some() {
+            doc = quote! { Some(#doc.unwrap_or_else(|| pretty::RcDoc::nil())) };
+        }
+        doc
+    }
+
     fn separator(&mut self, default: &str) -> TokenStream2 {
         let sep = self
             .remove("separator")
@@ -335,6 +342,7 @@ fn from_field(field: &Field, ident: &Ident, name: &str) -> FromField {
             }
         };
         let doc = attrs.name(doc, &name);
+        let doc = attrs.show_empty(doc);
         doc
     } else if is_option(&field) {
         let doc = quote! { #ident.as_ref().map(|opt| opt.to_doc()) };
