@@ -302,7 +302,7 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                 impl #impl_generics ToDoc for #item_ident #ty_generics #where_clause {
                     fn to_doc(&self) -> pretty::RcDoc<()> {
                         let Self #fields = self;
-                        #doc.unwrap_or_else(pretty::RcDoc::nil)
+                        #doc.unwrap_or_else(pretty::RcDoc::nil).group()
                     }
                 }
             }
