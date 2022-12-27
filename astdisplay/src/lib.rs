@@ -58,6 +58,7 @@ fn split_upper<'a>(mut s: &'a str) -> Vec<&'a str> {
 fn fmt_ident(ident: &Ident) -> String {
     split_upper(truncate_stmt_suffix(&ident.to_string()))
         .join(" ")
+        .replace("_", " ")
         .to_uppercase()
 }
 
@@ -274,6 +275,7 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                 let FromFields { fields, doc } =
                     from_fields(&variant.fields, &name, variant_attrs.separator(""));
                 let doc = variant_attrs.prefix(doc);
+                let doc = variant_attrs.suffix(doc);
                 let doc = variant_attrs.nest(doc);
                 quote! { Self::#ident #fields => #doc.unwrap_or_else(pretty::RcDoc::nil), }
             });
@@ -302,7 +304,7 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                 impl #impl_generics ToDoc for #item_ident #ty_generics #where_clause {
                     fn to_doc(&self) -> pretty::RcDoc<()> {
                         let Self #fields = self;
-                        #doc.unwrap_or_else(pretty::RcDoc::nil).group()
+                        #doc.unwrap_or_else(|| pretty::RcDoc::text(#name)).group()
                     }
                 }
             }
