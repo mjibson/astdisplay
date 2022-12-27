@@ -355,6 +355,7 @@ fn from_field(field: &Field, ident: &Ident, name: &str) -> FromField {
     } else if is_option(&field) {
         let doc = quote! { #ident.as_ref().map(|opt| opt.to_doc()) };
         let doc = attrs.name(doc, &name);
+        let doc = attrs.els(doc);
         doc
     } else {
         quote! { Some(#ident.to_doc()) }

@@ -233,3 +233,9 @@ struct FnTest {
 fn fntest(f: &FnTest) -> Option<RcDoc> {
     f.a.then(|| RcDoc::text("YO"))
 }
+
+#[derive(ToDoc)]
+struct DeallocateStatement {
+    #[todoc(else = "ALL")]
+    pub name: Option<Ident>,
+}
