@@ -274,9 +274,14 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
                     .unwrap_or_else(|| fmt_ident(&variant.ident));
                 let FromFields { fields, doc } =
                     from_fields(&variant.fields, &name, variant_attrs.separator(""));
-                let doc = variant_attrs.prefix(doc);
-                let doc = variant_attrs.suffix(doc);
-                let doc = variant_attrs.nest(doc);
+                let doc = if variant_attrs.remove("ignore").is_some() {
+                    quote! { None }
+                } else {
+                    let doc = variant_attrs.prefix(doc);
+                    let doc = variant_attrs.suffix(doc);
+                    let doc = variant_attrs.nest(doc);
+                    doc
+                };
                 quote! { Self::#ident #fields => #doc.unwrap_or_else(pretty::RcDoc::nil), }
             });
             let item_ident = item.ident;
