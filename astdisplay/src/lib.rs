@@ -324,6 +324,11 @@ struct FromField {
 // ident is something like self.blah, name is blah.
 fn from_field(field: &Field, ident: &Ident, name: &str) -> FromField {
     let mut attrs = Attrs::new(&field.attrs);
+    if let Some(doc_fn) = attrs.remove("doc_fn") {
+        let doc_fn = Ident::new(&doc_fn, syn::__private::Span::call_site());
+        let doc = quote! { #doc_fn(&self) };
+        return FromField { attrs, doc };
+    }
     let name = attrs.rename(name);
     let doc = if is_bool(&field) {
         let doc = quote! { #ident.then(|| pretty::RcDoc::text(#name)) };

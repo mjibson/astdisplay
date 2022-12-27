@@ -122,6 +122,7 @@ fn main() {
         having: Some(expr.clone()),
     };
     let s = Expr::List(vec![]);
+    let s = FnTest { a: true, b: false };
 
     // let ast = s.to_ast_string();
     // println!("{}", ast);
@@ -220,4 +221,15 @@ enum Expr {
         #[todoc(nest = "AND")]
         right: Box<Expr>,
     },
+}
+
+#[derive(ToDoc)]
+struct FnTest {
+    a: bool,
+    #[todoc(doc_fn = "fntest")]
+    b: bool,
+}
+
+fn fntest(f: &FnTest) -> Option<RcDoc> {
+    f.a.then(|| RcDoc::text("YO"))
 }
