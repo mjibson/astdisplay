@@ -300,6 +300,7 @@ pub fn derive_to_doc(item: TokenStream) -> TokenStream {
             let item_ident = item.ident;
             let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
             let doc = struct_attrs.name(doc, &name);
+            let doc = struct_attrs.suffix(doc);
             quote! {
                 impl #impl_generics ToDoc for #item_ident #ty_generics #where_clause {
                     fn to_doc(&self) -> pretty::RcDoc<()> {
